@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Simulación interactiva de caudal - Río Cauca</title>
+<style>
+body{font-family:Arial,sans-serif;margin:0;background:#f5f7fa;color:#17324d}
+main{max-width:1080px;margin:24px auto;padding:0 16px}
+.card{background:#fff;border-radius:16px;padding:22px;box-shadow:0 4px 18px #0002;margin-bottom:18px}
+h1,h2{margin-top:0}.controls{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
+button{padding:10px 14px;border:1px solid #315f85;border-radius:10px;background:#fff;cursor:pointer;font-weight:700}
+button.active{background:#315f85;color:#fff}
+select{padding:10px;border-radius:10px;border:1px solid #8da2b3;font-size:16px}
+.result{font-size:1.18rem;font-weight:700;margin:12px 0}
+.detail{background:#eef3f7;border-radius:10px;padding:12px;line-height:1.5}
+svg{width:100%;height:auto;border:1px solid #ccd6df;border-radius:10px;background:#fff}
+.small{font-size:.92rem;color:#506579}
+table{border-collapse:collapse;width:100%;margin-top:12px}th,td{border:1px solid #d8e0e8;padding:8px;text-align:center}th{background:#eef3f7}
+</style></head>
+<body><main>
+<div class="card">
+<h1>Caudal del río Cauca – Estación La Virginia</h1>
+<p>Explora cada intervalo de forma independiente o compara el periodo completo.</p>
+<div class="controls">
+<button id="fullBtn" class="active">Periodo completo (0–36 h)</button>
+<button id="firstBtn">Primer intervalo (0–6 h)</button>
+<label><strong>Explorar intervalo:</strong>
+<select id="interval">
+<option value="0">0–6 h</option><option value="1">6–12 h</option><option value="2">12–24 h</option>
+<option value="3">24–30 h</option><option value="4">30–36 h</option>
+</select></label>
+<button id="showInterval">Ver intervalo elegido</button>
+</div>
+<div id="result" class="result"></div>
+<div id="detail" class="detail"></div>
+<svg id="chart" viewBox="0 0 900 500"></svg>
+<p class="small">La zona sombreada corresponde al intervalo seleccionado. El volumen se obtiene mediante el área del trapecio bajo cada segmento y se multiplica por 3600 para convertir horas a segundos.</p>
+</div>
+<div class="card"><h2>Datos originales</h2>
+<table><thead><tr><th>t (h)</th><th>Caudal (m³/s)</th></tr></thead><tbody>
+<tr><td>0</td><td>1162,18</td></tr><tr><td>6</td><td>1173,05</td></tr><tr><td>12</td><td>1108,83</td></tr>
+<tr><td>24</td><td>1213,33</td></tr><tr><td>30</td><td>1265,22</td></tr><tr><td>36</td><td>1228,10</td></tr>
+</tbody></table></div>
+</main>
+<script>
+const data=[[0,1162.18],[6,1173.05],[12,1108.83],[24,1213.33],[30,1265.22],[36,1228.10]];
+let mode={type:'full'};
+const $=id=>document.getElementById(id);
+function calc(points){let area=0;for(let i=0;i<points.length-1;i++){let [t0,q0]=points[i],[t1,q1]=points[i+1];area+=(q0+q1)/2*(t1-t0)}return {area,volume:area*3600}}
+function fmt(n){return n.toLocaleString('es-CO',{minimumFractionDigits:2,maximumFractionDigits:2})}
+function setMode(type,index=0){mode={type,index};$('fullBtn').classList.toggle('active',type==='full');$('firstBtn').classList.toggle('active',type==='interval'&&index===0);draw()}
+$('fullBtn').addEventListener('click',()=>setMode('full'));
+$('firstBtn').addEventListener('click',()=>setMode('interval',0));
+$('showInterval').addEventListener('click',()=>setMode('interval',+$('interval').value));
+function draw(){
+ let pts,label;
+ if(mode.type==='full'){pts=data;label='Periodo completo: 0–36 horas'}
+ else{pts=data.slice(mode.index,mode.index+2);label=`Intervalo ${pts[0][0]}–${pts[1][0]} horas`}
+ let c=calc(pts);
+ $('result').innerHTML=`${label} → Volumen: <strong>${fmt(c.volume)} m³</strong>`;
+ if(mode.type==='full'){
+   $('detail').innerHTML=`Área total bajo los cinco segmentos: <strong>${fmt(c.area)}</strong> (m³/s)·h.<br>Volumen = ${fmt(c.area)} × 3600 = <strong>${fmt(c.volume)} m³</strong>.`;
+ }else{
+   let [a,b]=pts, dt=b[0]-a[0], avg=(a[1]+b[1])/2;
+   $('detail').innerHTML=`Caudal inicial: <strong>${fmt(a[1])} m³/s</strong> · Caudal final: <strong>${fmt(b[1])} m³/s</strong> · Duración: <strong>${dt} h</strong>.<br>Área del trapecio = ((${fmt(a[1])} + ${fmt(b[1])}) / 2) × ${dt} = <strong>${fmt(c.area)}</strong>.<br>Volumen = ${fmt(c.area)} × 3600 = <strong>${fmt(c.volume)} m³</strong>.`;
+ }
+ const svg=$('chart');svg.innerHTML='';const W=900,H=500,L=80,R=25,T=30,B=65,xmin=0,xmax=36,ymin=0,ymax=1350;
+ const X=x=>L+(x-xmin)/(xmax-xmin)*(W-L-R),Y=y=>H-B-(y-ymin)/(ymax-ymin)*(H-T-B);
+ function el(n,a){let e=document.createElementNS('http://www.w3.org/2000/svg',n);Object.entries(a).forEach(([k,v])=>e.setAttribute(k,v));svg.appendChild(e);return e}
+ for(let x=0;x<=36;x+=6){el('line',{x1:X(x),y1:Y(0),x2:X(x),y2:Y(1350),stroke:'#e1e7ec'});let t=el('text',{x:X(x),y:H-B+24,'text-anchor':'middle','font-size':13,fill:'#425466'});t.textContent=x}
+ for(let y=0;y<=1200;y+=200){el('line',{x1:X(0),y1:Y(y),x2:X(36),y2:Y(y),stroke:'#e1e7ec'});let t=el('text',{x:L-10,y:Y(y)+4,'text-anchor':'end','font-size':13,fill:'#425466'});t.textContent=y}
+ el('line',{x1:X(0),y1:Y(0),x2:X(36),y2:Y(0),stroke:'#263746','stroke-width':2});el('line',{x1:X(0),y1:Y(0),x2:X(0),y2:Y(1350),stroke:'#263746','stroke-width':2});
+ let poly=[[pts[0][0],0],...pts,[pts.at(-1)[0],0]].map(p=>`${X(p[0])},${Y(p[1])}`).join(' ');
+ el('polygon',{points:poly,fill:'#8db6d8','fill-opacity':.38});
+ el('polyline',{points:data.map(p=>`${X(p[0])},${Y(p[1])}`).join(' '),fill:'none',stroke:'#263746','stroke-width':3});
+ data.forEach(([x,y])=>{el('circle',{cx:X(x),cy:Y(y),r:5,fill:'#315f85'});let t=el('text',{x:X(x)+7,y:Y(y)-8,'font-size':12,fill:'#17324d'});t.textContent=`(${x}, ${y.toFixed(2)})`});
+ let tx=el('text',{x:(L+W-R)/2,y:H-15,'text-anchor':'middle','font-size':15,fill:'#17324d'});tx.textContent='Tiempo transcurrido (horas)';
+ let ty=el('text',{x:18,y:(T+H-B)/2,transform:`rotate(-90 18 ${(T+H-B)/2})`,'text-anchor':'middle','font-size':15,fill:'#17324d'});ty.textContent='Caudal (m³/s)';
+}
+draw();
+</script></body></html>
